@@ -21,7 +21,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 	public static final String TAG = "WordditTest";
 	protected WordditHome mActivity;
 	
-	protected String URL = Session.API_URL;
+	protected String URL = "http://130.160.75.97:8080/api";
 	
 	protected String GameID;
 	
@@ -46,6 +46,30 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 		return USERS[ rng.nextInt(USERS.length) ];
 	}
 	
+	protected Account getUniqueAccount(Account ... accounts) {
+		boolean tested[] = new boolean[USERS.length];
+		Random rng = new Random();
+		
+		int r = rng.nextInt(USERS.length);
+		int uniques = 0;
+
+		while(tested[r] == false && uniques < USERS.length) {
+			boolean collision = false;
+			for(Account a : accounts) {
+				if(a.equals(tested[r])) {
+					tested[r] = true;
+					collision = true;
+					uniques++;
+					break;
+				}
+			}
+			
+			if(!collision) return USERS[r];
+		}
+		
+		return null;
+	}
+	
 	public void testAAAPreconditions() {
 		try {
 			Session s = getSession();
@@ -53,7 +77,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 				Account a = USERS[i];
 				boolean result = s.createAccount(a.user, a.password);
 				if(result == false) {
-					assertEquals(s.getLastResponse(), Worddit.USER_EXISTS);
+					assertEquals(Worddit.USER_EXISTS, s.getLastResponse());
 				}
 			}
 		} catch (MalformedURLException e) {
@@ -65,19 +89,44 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 		}
 	}
 	
+	public void testRequest() {
+		try {
+			Session s = getSession();
+			Session s2 = getSession();
+			
+			Account a = getAccount();
+			Account b = getUniqueAccount(a);
+			
+			// Fail cases: forgot to log in.
+			assertNull(s.requestGame(2, "rule"));
+			assertNull(s2.requestGame(2, "rule"));
+			
+			// Users log in.
+			assertEquals(true, s.login(a.user, a.password));
+			assertEquals(true, s2.login(b.user, b.password));
+			
+			// User 1 requests a game with 2 people
+			// TODO: How does this work?
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+			assertEquals(true,false);
+		}
+	}
+	
 	public void testLogin() {
 		Account a = getAccount();
 		try {
 			Session s = getSession();
 			
 			// Typed in a bad password
-			assertEquals(s.login(a.user, a.password.substring(1)),false);
+			assertEquals(false, s.login(a.user, a.password.substring(1)));
 			
 			// Typed in a bad username
-			assertEquals(s.login(a.user.substring(1), a.password),false);
+			assertEquals(false, s.login(a.user.substring(1), a.password));
 			
 			// Typed in correct credentials.
-			assertEquals(s.login(a.user, a.password),true);
+			assertEquals(true, s.login(a.user, a.password));
 			
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
@@ -94,11 +143,11 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			Account a = getAccount();
 			
 			// Do it without logging in.
-			assertEquals(s.setProfile("idiot@example.com", "super-easy", "doofushead"), false);
+			assertEquals(false, s.setProfile("idiot@example.com", "super-easy", "doofushead"));
 			
 			// Log in and do it.
-			assertEquals(s.login(a.user, a.password),true);
-			assertEquals(s.setProfile("idiot@example.com", "super-easy", "doofushead"), true);
+			assertEquals(true,s.login(a.user, a.password));
+			assertEquals(true, s.setProfile("idiot@example.com", "super-easy", "doofushead"));
 			
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -106,7 +155,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 		}
 	}
 	
-	public void testSetAvater() {
+	public void testSetAvatar() {
 		// TODO: Write the test case for this.
 		assertNotNull(null);
 	}
@@ -116,14 +165,16 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			Session s = getSession();
 			Account a = getAccount();
 			Account b = getAccount();
+
+			Profile p;
+			assertNotNull(p = s.findUser(b.user));
 			
-			assertNull(s.findUser(b.user));
-			assertEquals(s.login(a.user, a.password),true);
-			Profile p = s.findUser(b.user);
-			assertNotNull(p);
+			// Server shouldn't reveal email.
+			assertNull(p.email);
+			assertEquals(true,s.login(a.user, a.password));
+			assertNotNull(p = s.findUser(b.user));
 			
-			assertNotNull(p.avatar);
-			// Email can be null
+			// Email & avatar can be null
 			assertNotNull(p.id);
 			assertNotNull(p.nickname);
 			
@@ -142,21 +193,38 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			// Without logging in.
 			assertNull(s.getFriends());
 			
-			assertEquals(s.login(a.user, a.password), true);
+			assertEquals(true,s.login(a.user, a.password));
 			Friend friends[] = s.getFriends();
 			assertNotNull(friends);
 			
 			for(Friend f : friends) {
 				assertNotNull(f.id);
 				assertEquals(
-					f.isActive() || f.isPending() || f.isRequested(),
-					true
+					true,
+					f.isActive() || f.isPending() || f.isRequested()
 				);
 			}
 			
 		} catch (Exception e) {
 			e.printStackTrace();
 			assertEquals(true,false);
+		}
+	}
+	
+	public void testBefriend() {
+		try {
+			Session s = getSession();
+			Account a = getAccount();
+			Account b = getUniqueAccount(a);
+			
+			// Should fail due to no login
+			assertFalse(s.befriend(b.user));
+			
+			assertTrue(s.login(a.user, a.password));
+			boolean result = s.befriend(b.user);
+			assertTrue(b.user + " " + Integer.toString(s.getLastResponse()), result);
+		} catch (Exception e) {
+			info(e.getMessage());
 		}
 	}
 	
@@ -169,28 +237,27 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			assertNull(s.getGames());
 			
 			// Log in and do it.
-			assertEquals(s.login(a.user, a.password),true);
+			assertEquals(true,s.login(a.user, a.password));
 			Game games[] = s.getGames();
 			assertNotNull(games);
 			
 			// Make sure the game data looks good.
 			for(Game g : games) {
 				assertNotNull(g.id);
-				assertNotNull(g.current_player);
-				assertNotNull(g.last_move_utc);
 				assertNotNull(g.players);
 				
-				for(String player : g.players) {
+				for(Game.Player player : g.players) {
 					assertNotNull(player);
+					assertNotNull(player.id);
 				}
 				
 				// Make sure 'status' is a valid constant.
-				assertEquals(
-						g.isAccepted() || g.isActive() || g.isInvited() || g.isWaiting(),
-						true);
+				assertTrue("Invalid value: " + g.status,
+						g.isAccepted() || g.isActive() || g.isInvited() || g.isWaiting());
 						
 			}
 		} catch (Exception e) {
+			info(e.getMessage());
 			e.printStackTrace();
 			assertEquals(true,false);
 		}
@@ -231,23 +298,22 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 		try {
 			Session s = getSession();
 			Account a = getAccount();
+			Account b = getUniqueAccount(a);
 			
 			// Try to get a game without logging in.
-			assertNull(s.newGame("hi", "woot"));
-			assertEquals(s.getLastResponse(), Worddit.AUTH_INVALID);
+			assertNull(s.newGame(b.user, "woot"));
+			assertEquals(Worddit.AUTH_INVALID, s.getLastResponse());
 			
 			// Try it while logging in.
 			String id;
-			assertEquals(s.login(a.user, a.password),true);
+			assertEquals(true,s.login(a.user, a.password));
 			error("Login sanity check",s);
-			assertNotNull(id = s.newGame("hi", "woot"));
-			if(id == null) {
-				error("Game ID null", s);
-			}
+			assertNotNull(id = s.newGame(b.user, "woot"));
 			
 		} catch (Exception e) {
-			assertEquals(true,false);
+			info(e.getMessage());
 			e.printStackTrace();
+			assertEquals(true,false);
 		}
 	}
 	
@@ -271,6 +337,18 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			user = u;
 			password = p;
 		}
+		
+		public boolean equals(Object b) {
+			if(b instanceof WordditTest.Account == false) return false;
+			Account other = (Account) b;
+			return user.equalsIgnoreCase(other.user) &&
+				password.equalsIgnoreCase(other.password);
+		}
+		
+		public int hashCode() {
+			return String.format("%s:%s", user,password).hashCode();
+		}
+		
 		String user, password;
 	}
 }
