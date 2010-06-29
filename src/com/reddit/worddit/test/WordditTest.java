@@ -16,6 +16,7 @@ import com.reddit.worddit.api.response.Friend;
 import com.reddit.worddit.api.response.Game;
 import com.reddit.worddit.api.response.Profile;
 import com.reddit.worddit.api.response.Tile;
+import com.reddit.worddit.api.response.GameBoard;
 
 public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 	public static final String TAG = "WordditTest";
@@ -387,6 +388,35 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			assertEquals(true,s.login(a.user, a.password));
 			error("Login sanity check",s);
 			assertNotNull(id = s.newGame(b.user, "woot"));
+			
+		} catch (Exception e) {
+			info(e.getMessage());
+			e.printStackTrace();
+			assertEquals(true,false);
+		}
+	}
+	
+	public void testGetBoard() {
+		try {
+			Session s = getSession();
+			Account a = getAccount();
+			Account b = getUniqueAccount(a);
+			
+			// Try to get a game without logging in.
+			assertNull(s.newGame(b.user, "woot"));
+			assertEquals(Worddit.AUTH_INVALID, s.getLastResponse());
+			
+			// Try it while logging in.
+			String id;
+			assertEquals(true,s.login(a.user, a.password));
+			error("Login sanity check",s);
+			assertNotNull(id = s.newGame(b.user, "woot"));
+			
+			GameBoard board = s.getBoard(id);
+			
+			if(board == null) {
+				assertEquals(Worddit.SUCCESS, s.getLastResponse());
+			}
 			
 		} catch (Exception e) {
 			info(e.getMessage());
