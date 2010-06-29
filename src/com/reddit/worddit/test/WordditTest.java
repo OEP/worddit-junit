@@ -21,7 +21,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 	public static final String TAG = "WordditTest";
 	protected WordditHome mActivity;
 	
-	protected String URL = "http://130.160.75.97:8080/api";
+	protected String URL = Session.API_URL;
 	
 	protected String GameID;
 	
@@ -106,8 +106,12 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			assertEquals(true, s2.login(b.user, b.password));
 			
 			// User 1 requests a game with 2 people
-			// TODO: How does this work?
+			String id1, id2;
+			assertNotNull(id1 = s.requestGame(2, "rule"));
+			assertNotNull(id2 = s2.requestGame(2, "rule"));
 			
+			// Should have been paired together
+			assertEquals(id1, id2);
 		} catch (Exception e) {
 			e.printStackTrace();
 			assertEquals(true,false);
@@ -223,6 +227,80 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			assertTrue(s.login(a.user, a.password));
 			boolean result = s.befriend(b.user);
 			assertTrue(b.user + " " + Integer.toString(s.getLastResponse()), result);
+		} catch (Exception e) {
+			info(e.getMessage());
+		}
+	}
+	
+	public void testAcceptFriend() {
+		try {
+			Session s = getSession(),
+				s2 = getSession();
+			Account a = getAccount();
+			Account b = getUniqueAccount(a);
+			
+			// Should fail due to no login
+			assertFalse(s.befriend(b.user));
+			
+			assertTrue(s.login(a.user, a.password));
+			assertTrue(s2.login(b.user, b.password));
+			
+			boolean result = s.befriend(b.user);
+			assertTrue(b.user + " " + Integer.toString(s.getLastResponse()), result);
+			
+			// Accepts the friendship
+			assertTrue(s2.acceptFriend(a.user));
+			
+		} catch (Exception e) {
+			info(e.getMessage());
+		}
+	}
+	
+	public void testAcceptGame() {
+		try {
+			Session s = getSession(),
+				s2 = getSession();
+			Account a = getAccount();
+			Account b = getUniqueAccount(a);
+			
+			// Should fail due to no login
+			String gameId;
+			assertNull(s.newGame(b.user, "foo"));
+			
+			// Log in the users...
+			assertTrue(s.login(a.user, a.password));
+			assertTrue(s2.login(b.user, b.password));
+			
+			gameId = s.newGame(b.user, "woot");
+			assertNotNull("New game not created. " + s.getLastResponse(), gameId);
+			
+			boolean result = s2.acceptGame(gameId);
+			assertTrue("Couldn't accept game: " + s2.getLastResponse(), result);
+		} catch (Exception e) {
+			info(e.getMessage());
+		}
+	}
+	
+	public void testRejectGame() {
+		try {
+			Session s = getSession(),
+				s2 = getSession();
+			Account a = getAccount();
+			Account b = getUniqueAccount(a);
+			
+			// Should fail due to no login
+			String gameId;
+			assertNull(s.newGame(b.user, "foo"));
+			
+			// Log in the users...
+			assertTrue(s.login(a.user, a.password));
+			assertTrue(s2.login(b.user, b.password));
+			
+			gameId = s.newGame(b.user, "foo");
+			assertNotNull("New game not created. " + s.getLastResponse(), gameId);
+			
+			boolean result = s2.rejectGame(gameId);
+			assertTrue("Couldn't reject game: " + s2.getLastResponse(), result);
 		} catch (Exception e) {
 			info(e.getMessage());
 		}
