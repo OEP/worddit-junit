@@ -2,6 +2,8 @@ package com.reddit.worddit.test;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import junit.framework.Assert;
@@ -19,57 +21,28 @@ import com.reddit.worddit.api.response.Tile;
 import com.reddit.worddit.api.response.GameBoard;
 
 public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
-	public static final String TAG = "WordditTest";
-	protected WordditHome mActivity;
-	
-	protected String URL = Session.API_URL;
-	
-	protected String GameID;
-	
 	/**
 	 * Valid accounts.
 	 */
-	protected Account USERS[] = {
-			new Account("bob@example.com","panda"),
-			new Account("alice@example.com", "kitten")
-	};
+	public Account USERS[] = {
+				new Account("bob@example.com","panda"),
+				new Account("alice@example.com", "kitten"),
+				new Account("cindy@example.com", "puppy"),
+				new Account("daniel@example.com", "kangaroo")
+		};
+	
+	public static final String TAG = "WordditTest";
+	protected WordditHome mActivity;
+	
+	public static final String URL = "http://130.160.75.97:8080/api";
+	
+	protected String GameID;
+	
 	
 	public WordditTest() {
 		super("com.reddit.worddit", WordditHome.class);
 	}
 	
-	protected Session getSession() throws MalformedURLException {
-		return Session.makeSession(URL);
-	}
-	
-	protected Account getAccount() {
-		Random rng = new Random();
-		return USERS[ rng.nextInt(USERS.length) ];
-	}
-	
-	protected Account getUniqueAccount(Account ... accounts) {
-		boolean tested[] = new boolean[USERS.length];
-		Random rng = new Random();
-		
-		int r = rng.nextInt(USERS.length);
-		int uniques = 0;
-
-		while(tested[r] == false && uniques < USERS.length) {
-			boolean collision = false;
-			for(Account a : accounts) {
-				if(a.equals(tested[r])) {
-					tested[r] = true;
-					collision = true;
-					uniques++;
-					break;
-				}
-			}
-			
-			if(!collision) return USERS[r];
-		}
-		
-		return null;
-	}
 	
 	public void testAAAPreconditions() {
 		try {
@@ -81,41 +54,24 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 					assertEquals(Worddit.USER_EXISTS, s.getLastResponse());
 				}
 			}
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (Exception e) {
+			handle(e);
 		}
 	}
 	
 	public void testRequest() {
 		try {
-			Session s = getSession();
-			Session s2 = getSession();
-			
-			Account a = getAccount();
-			Account b = getUniqueAccount(a);
-			
-			// Fail cases: forgot to log in.
-			assertNull(s.requestGame(2, "rule"));
-			assertNull(s2.requestGame(2, "rule"));
-			
-			// Users log in.
-			assertEquals(true, s.login(a.user, a.password));
-			assertEquals(true, s2.login(b.user, b.password));
+			Session s[] = makeAuthedSessions(2);
 			
 			// User 1 requests a game with 2 people
 			String id1, id2;
-			assertNotNull(id1 = s.requestGame(2, "rule"));
-			assertNotNull(id2 = s2.requestGame(2, "rule"));
+			assertNotNull(id1 = s[0].requestGame(2, "rule"));
+			assertNotNull(id2 = s[1].requestGame(2, "rule"));
 			
 			// Should have been paired together
 			assertEquals(id1, id2);
 		} catch (Exception e) {
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
@@ -133,51 +89,40 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			// Typed in correct credentials.
 			assertEquals(true, s.login(a.user, a.password));
 			
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		} catch (Exception e) {
+			handle(e);
 		}
 	}
 	
 	public void testSetProfile() {
 		try {
-			Session s = getSession();
-			Account a = getAccount();
-			
-			// Do it without logging in.
-			assertEquals(false, s.setProfile("idiot@example.com", "super-easy", "doofushead"));
-			
-			// Log in and do it.
-			assertEquals(true,s.login(a.user, a.password));
+			Session s = makeAuthedSession();
 			assertEquals(true, s.setProfile("idiot@example.com", "super-easy", "doofushead"));
 			
 		} catch (Exception e) {
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
 	public void testSetAvatar() {
 		// TODO: Write the test case for this.
-		assertNotNull(null);
+		fail("Not yet written");
 	}
 	
 	public void testFindFriend() {
 		try {
-			Session s = getSession();
-			Account a = getAccount();
+			Session noauth = getSession();
+			Session auth = makeAuthedSession();
 			Account b = getAccount();
 
-			Profile p;
-			assertNotNull(p = s.findUser(b.user));
+			// Do it while not auth'd
+			Profile p = getProfile(b,noauth);
 			
 			// Server shouldn't reveal email.
 			assertNull(p.email);
-			assertEquals(true,s.login(a.user, a.password));
-			assertNotNull(p = s.findUser(b.user));
+			
+			// Do it while auth'd
+			p = getProfile(b, auth);
 			
 			// Email & avatar can be null
 			assertNotNull(p.id);
@@ -185,20 +130,13 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			
 			
 		} catch (Exception e) {
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
 	public void testGetFriends() {
 		try {
-			Session s = getSession();
-			Account a = getAccount();
-			
-			// Without logging in.
-			assertNull(s.getFriends());
-			
-			assertEquals(true,s.login(a.user, a.password));
+			Session s = makeAuthedSession();
 			Friend friends[] = s.getFriends();
 			assertNotNull(friends);
 			
@@ -211,74 +149,47 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			}
 			
 		} catch (Exception e) {
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
 	public void testBefriend() {
 		try {
-			Session s = getSession();
-			Account a = getAccount();
-			Account b = getUniqueAccount(a);
-			
-			// Should fail due to no login
-			assertFalse(s.befriend(b.user));
-			
-			assertTrue(s.login(a.user, a.password));
-			boolean result = s.befriend(b.user);
-			assertTrue(b.user + " " + Integer.toString(s.getLastResponse()), result);
+			PlayerGroup g = makeGroup(2);
+			boolean result = g.S[0].befriend(g.P[1].id);
+			assertTrue(String.format("%s friends %s -- ", g.P[0].id, g.P[1].id) + 
+					Integer.toString(g.S[0].getLastResponse()), result);
 		} catch (Exception e) {
-			info(e.getMessage());
+			handle(e);
 		}
 	}
 	
 	public void testAcceptFriend() {
 		try {
-			Session s = getSession(),
-				s2 = getSession();
-			Account a = getAccount();
-			Account b = getUniqueAccount(a);
+			PlayerGroup g = makeGroup(2);
 			
-			// Should fail due to no login
-			assertFalse(s.befriend(b.user));
-			
-			assertTrue(s.login(a.user, a.password));
-			assertTrue(s2.login(b.user, b.password));
-			
-			boolean result = s.befriend(b.user);
-			assertTrue(b.user + " " + Integer.toString(s.getLastResponse()), result);
+			boolean result = g.S[0].befriend(g.P[1].id);
+			assertTrue("Couldn't befriend", result);
 			
 			// Accepts the friendship
-			assertTrue(s2.acceptFriend(a.user));
+			assertTrue(g.S[1].acceptFriend(g.P[0].id));
 			
 		} catch (Exception e) {
-			info(e.getMessage());
+			handle(e);
 		}
 	}
 	
 	public void testAcceptGame() {
 		try {
-			Session s = getSession(),
-				s2 = getSession();
-			Account a = getAccount();
-			Account b = getUniqueAccount(a);
+			PlayerGroup g = makeGroup(2);
 			
-			// Should fail due to no login
-			String gameId;
-			assertNull(s.newGame(b.user, "foo"));
+			String gameId = g.S[0].newGame(g.P[1].id, "woot");
+			assertNotNull("New game not created. " + g.S[0].getLastResponse(), gameId);
 			
-			// Log in the users...
-			assertTrue(s.login(a.user, a.password));
-			assertTrue(s2.login(b.user, b.password));
-			
-			gameId = s.newGame(b.user, "woot");
-			assertNotNull("New game not created. " + s.getLastResponse(), gameId);
-			
-			boolean result = s2.acceptGame(gameId);
-			assertTrue("Couldn't accept game: " + s2.getLastResponse(), result);
+			boolean result = g.S[1].acceptGame(gameId);
+			assertTrue("Couldn't accept game: " + g.S[1].getLastResponse(), result);
 		} catch (Exception e) {
-			info(e.getMessage());
+			handle(e);
 		}
 	}
 	
@@ -303,7 +214,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			boolean result = s2.rejectGame(gameId);
 			assertTrue("Couldn't reject game: " + s2.getLastResponse(), result);
 		} catch (Exception e) {
-			info(e.getMessage());
+			handle(e);
 		}
 	}
 	
@@ -317,7 +228,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			
 			// Log in and do it.
 			assertEquals(true,s.login(a.user, a.password));
-			Game games[] = s.getGames();
+			Game[] games = s.getGames();
 			assertNotNull(games);
 			
 			// Make sure the game data looks good.
@@ -336,9 +247,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 						
 			}
 		} catch (Exception e) {
-			info(e.getMessage());
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
@@ -368,8 +277,7 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			
 			assertEquals(s.createAccount(username.toString(), password.toString()),true);
 		} catch (Exception e) {
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
@@ -390,39 +298,28 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 			assertNotNull(id = s.newGame(b.user, "woot"));
 			
 		} catch (Exception e) {
-			info(e.getMessage());
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
 	}
 	
 	public void testGetBoard() {
 		try {
-			Session s = getSession();
-			Account a = getAccount();
-			Account b = getUniqueAccount(a);
+			TestGame game = makeGame(2);
 			
-			// Try to get a game without logging in.
-			assertNull(s.newGame(b.user, "woot"));
-			assertEquals(Worddit.AUTH_INVALID, s.getLastResponse());
-			
-			// Try it while logging in.
-			String id;
-			assertEquals(true,s.login(a.user, a.password));
-			error("Login sanity check",s);
-			assertNotNull(id = s.newGame(b.user, "woot"));
-			
-			GameBoard board = s.getBoard(id);
+			GameBoard board = game.Players.S[0].getBoard(game.ID);
 			
 			if(board == null) {
-				assertEquals(Worddit.SUCCESS, s.getLastResponse());
+				assertEquals(Worddit.SUCCESS, game.Players.S[0].getLastResponse());
 			}
 			
 		} catch (Exception e) {
-			info(e.getMessage());
-			e.printStackTrace();
-			assertEquals(true,false);
+			handle(e);
 		}
+	}
+	
+	protected void handle(Exception e) {
+		e.printStackTrace();
+		fail("Exception thrown: " + e.getMessage());
 	}
 	
 	protected void error(String msg, Session s) {
@@ -439,8 +336,38 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 		super.setUp();
 		mActivity = this.getActivity();
 	}
+
 	
-	class Account {
+	protected Session makeAuthSession(Account a) throws IOException {
+		Session s = getSession();
+		assertTrue("Couldn't authenticate: " + a.user,
+				s.login(a.user, a.password));
+		return s;
+	}
+	
+	static class TestGame {
+		public PlayerGroup Players;
+		public String ID;
+	}
+	
+	static class PlayerGroup {
+		public Session S[];
+		public Account A[];
+		public Profile P[];
+		
+		public ArrayList<String> getIDs() {
+			ArrayList<String> l = new ArrayList<String>();
+			if(P == null) return l;
+			
+			for(Profile p : P) {
+				l.add(p.id);
+			}
+			
+			return l;
+		}
+	}
+	
+	static class Account {
 		public Account(String u, String p) {
 			user = u;
 			password = p;
@@ -458,5 +385,121 @@ public class WordditTest extends ActivityInstrumentationTestCase2<WordditHome> {
 		}
 		
 		String user, password;
+	}
+	
+	
+	public Session getSession() throws MalformedURLException {
+		return Session.makeSession(URL);
+	}
+	
+
+	public PlayerGroup makeGroup(int n) throws IOException {
+		PlayerGroup g = new PlayerGroup();
+		
+		g.A = getAccounts(n);
+		g.S = makeAuthedSessions(g.A);
+		g.P = getProfiles(g.A, g.S[0]);
+		
+		return g;
+	}
+	
+	public TestGame makeGame(int n) throws IOException {
+		PlayerGroup group = makeGroup(n);
+		TestGame game = new TestGame();
+		
+		Session l = group.S[0];
+		ArrayList<String> list = new ArrayList<String>();
+		list.add("test-junit");
+		
+		game.ID = l.newGame(group.getIDs(), list);
+		assertNotNull("Couldn't make new game", game.ID);
+		
+		game.Players = group;
+		
+		return game;
+	}
+	
+	public Profile getProfile(Account a, Session s) throws IOException {
+		Profile p;
+		assertNotNull("Couldn't get profile: " + a.user, p = s.findUser(a.user));
+		return p;
+	}
+	
+	public Profile[] getProfiles(Account a[], Session s) throws IOException {
+		Profile p[] = new Profile[a.length];
+		for(int i = 0; i < a.length; i++) {
+			p[i] = getProfile(a[i], s);
+		}
+		return p;
+	}
+	
+	public Account getAccount() {
+		Random rng = new Random();
+		return USERS[ rng.nextInt(USERS.length) ];
+	}
+	
+	public Account getUniqueAccount(Account ... accounts) {
+		boolean tested[] = new boolean[USERS.length];
+		Random rng = new Random();
+		
+		int r;
+		int uniques = 0;
+
+		while(uniques < USERS.length) {
+			r = rng.nextInt(USERS.length);
+			while(tested[r] == true) {
+				r = rng.nextInt(USERS.length);
+			}
+			
+			boolean collision = false;
+			for(Account a : accounts) {
+				if(a != null && a.equals(USERS[r])) {
+					tested[r] = true;
+					collision = true;
+					uniques++;
+					break;
+				}
+			}
+			
+			if(!collision) return USERS[r];
+		}
+		
+		throw new IllegalArgumentException("Ran out of unique accounts.");
+	}
+	
+	public Account[] getAccounts(int n) {
+		Account a[] = new Account[n];
+		
+		for(int i = 0; i < n; i++) {
+			a[i] = getUniqueAccount(a);
+		}
+		
+		return a;
+	}
+	
+	public Session makeAuthedSession() throws IOException {
+		Session s[] = makeAuthedSessions(1);
+		return s[0];
+	}
+	
+	public Session makeAuthedSession(Account a) throws IOException {
+		Account tmpAccounts[] = new Account[1];
+		Session tmpSessions[] = makeAuthedSessions(tmpAccounts);
+		return tmpSessions[0];
+	}
+	
+	public Session[] makeAuthedSessions(int n) throws IOException {
+		Account a[] = getAccounts(n);
+		Session s[] = makeAuthedSessions(a);
+		return s;
+	}
+	
+	public Session[] makeAuthedSessions(Account a[]) throws IOException {
+		Session s[] = new Session[a.length];
+		for(int i = 0; i < a.length; i++) {
+			s[i] = getSession();
+			assertTrue("Couldn't log in: " + a[i].user, s[i].login(a[i].user, a[i].password));
+		}
+		return s;
 	}
 }
